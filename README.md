@@ -12,38 +12,7 @@ Le pipeline couvre la période du **1er janvier au 31 mars 2023 (Q1 2023)**.
 
 Le projet repose sur une architecture modulaire orchestrée par Dagster.
 
-```text
-                 Socrata API
-                      |
-                      v
-              Bronze Layer
-               (Raw Data)
-                      |
-                      v
-              Silver Layer
-          (Cleaning & Quality)
-                      |
-                      v
-               Gold Layer
-          (Business Aggregations)
-                      |
-                      v
-                  MinIO
-                (Data Lake)
-                      |
-                      v
-                  DuckDB
-                      |
-                      v
-                 FastAPI
-                      |
-                      v
-                 Streamlit
-                 Dashboard
-
-          Dagster orchestrates
-          the pipeline assets
-```
+![Architecture du pipeline Chicago Taxi Trips](architecture.png)
 
 ## 3. Technologies utilisées
 
