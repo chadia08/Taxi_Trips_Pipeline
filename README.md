@@ -1,4 +1,4 @@
-# 🚕 Chicago Taxi Trips — Pipeline de Data Engineering de bout en bout
+# 🚕 Chicago Taxi Trips — Pipeline de Data Engineering
 
 ## 1. Présentation du projet
 
