@@ -151,20 +151,24 @@ Créer un environnement virtuel permet d'isoler les dépendances Python du proje
 
 Sous Windows (PowerShell) :
 
+```bash
 python -m venv .venv
 .venv\Scripts\Activate.ps1
+```
 
 Sous Linux / macOS :
 
+```bash
 python3 -m venv .venv
 source .venv/bin/activate
+```
 
-Mettre à jour pip et installer les dépendances :
+Installer les dépendances :
 
-python -m pip install --upgrade pip
+```bash
 pip install -r requirements.txt
+```
 
-Remarque : l'environnement virtuel est utilisé pour exécuter localement l'API FastAPI et le dashboard Streamlit. Les dépendances nécessaires aux services Dagster et PySpark sont installées séparément dans les conteneurs Docker.
 
 ### Étape 3 — Démarrer les services Docker
 
