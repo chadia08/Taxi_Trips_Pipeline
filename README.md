@@ -1,219 +1,293 @@
-# Chicago Taxi Trips – Pipeline Data Engineering de bout en bout
+# 🚕 Chicago Taxi Trips — Pipeline de Data Engineering de bout en bout
 
-Ce projet consiste à concevoir et développer un pipeline Data Engineering de bout en bout à partir du jeu de données Chicago Taxi Trips.
+## 1. Présentation du projet
 
-L'objectif est de construire un pipeline de données reproductible suivant l'architecture **Medallion (Bronze, Silver, Gold)**, permettant d'ingérer, de transformer et de préparer les données pour leur exploitation analytique.
+Ce projet consiste à concevoir et déployer un pipeline de Data Engineering de bout en bout à partir du jeu de données **Chicago Taxi Trips**, disponible via l'API publique Socrata de la ville de Chicago.
 
-Le pipeline repose sur Dagster pour l'orchestration, PySpark pour le traitement des données et MinIO pour le stockage objet. L'ensemble de l'infrastructure est exécuté localement à l'aide de Docker Compose.
+L'objectif est de collecter, traiter et transformer les données selon une architecture **Medallion (Bronze, Silver, Gold)**, puis de rendre les indicateurs accessibles à travers une API REST et un tableau de bord interactif.
 
----
-
-## 1. Objectifs du projet
-
-L'objectif principal est de mettre en place un pipeline Batch permettant de transformer des données brutes de trajets de taxis en données fiables, structurées et exploitables pour l'analyse.
-
-Le pipeline est organisé en trois couches :
-
-- **Bronze :** ingestion et stockage des données brutes.
-- **Silver :** nettoyage, normalisation, déduplication et contrôle de la qualité des données.
-- **Gold :** transformations métier, agrégations et calcul d'indicateurs analytiques (KPIs).
-
-Les données de la couche Gold sont destinées à être exploitées via SQL, des API et des dashboards.
+Le pipeline couvre la période du **1er janvier au 31 mars 2023 (Q1 2023)**.
 
 ## 2. Architecture
 
-Le projet suit une architecture Medallion composée de trois couches de traitement.
+Le projet repose sur une architecture modulaire orchestrée par Dagster.
 
 ```text
-                  CHICAGO DATA PORTAL
-                         API
-                          |
-                          | Ingestion Batch
-                          v
-                 +------------------+
-                 |      BRONZE      |
-                 |  Données brutes  |
-                 |      MinIO       |
-                 +------------------+
-                          |
-                          | PySpark
-                          v
-                 +------------------+
-                 |      SILVER      |
-                 | Données nettoyées|
-                 |      MinIO       |
-                 +------------------+
-                          |
-                          | PySpark
-                          v
-                 +------------------+
-                 |       GOLD       |
-                 | Données analytiques
-                 |      MinIO       |
-                 +------------------+
-                          |
-                          v
-              +--------------------------+
-              |    COUCHE D'EXPOSITION   |
-              |                          |
-              |      SQL / API /         |
-              |       Dashboard          |
-              +--------------------------+
+                 Socrata API
+                      |
+                      v
+              Bronze Layer
+               (Raw Data)
+                      |
+                      v
+              Silver Layer
+          (Cleaning & Quality)
+                      |
+                      v
+               Gold Layer
+          (Business Aggregations)
+                      |
+                      v
+                  MinIO
+                (Data Lake)
+                      |
+                      v
+                  DuckDB
+                      |
+                      v
+                 FastAPI
+                      |
+                      v
+                 Streamlit
+                 Dashboard
 
-
-    DAGSTER     : Orchestration du pipeline
-    POSTGRESQL  : Stockage des métadonnées Dagster
-    DOCKER      : Exécution de l'infrastructure locale
+          Dagster orchestrates
+          the pipeline assets
 ```
-
-Dagster orchestre les différentes étapes du pipeline et gère les dépendances entre les couches Bronze, Silver et Gold.
 
 ## 3. Technologies utilisées
 
-| Technologie | Rôle |
+| Composant | Technologie |
 |---|---|
-| Python | Développement du pipeline |
-| Dagster | Orchestration et gestion des dépendances |
-| Apache Spark / PySpark | Traitement et transformation des données |
-| MinIO | Stockage objet et Data Lake |
-| PostgreSQL | Stockage des métadonnées et de l'historique Dagster |
-| Parquet | Format de stockage colonne |
-| Docker Compose | Déploiement de l'infrastructure locale |
-| DuckDB | Exécution de requêtes SQL sur les fichiers Parquet |
-| FastAPI | Exposition des données via des API REST |
-| Streamlit | Création d'un dashboard interactif |
+| Source de données | Socrata API |
+| Orchestration | Dagster |
+| Traitement distribué | PySpark |
+| Stockage Data Lake | MinIO |
+| Stockage des métadonnées Dagster | PostgreSQL |
+| Requêtage analytique | DuckDB |
+| API REST | FastAPI |
+| Dashboard | Streamlit |
+| Conteneurisation | Docker & Docker Compose |
+| Format de stockage | Parquet |
 
-## 4. Source des données
+## 4. Architecture Medallion
 
-**Chicago Taxi Trips**
+### Bronze — Ingestion des données
 
-Source officielle : [Chicago Data Portal – Taxi Trips](https://data.cityofchicago.org/Transportation/Taxi-Trips-2013-2023-/wrvz-psew/about_data)
+- Extraction des données depuis l'API Socrata.
+- Ingestion des trajets sur la période janvier–mars 2023.
+- Pagination des résultats pour récupérer les données.
+- Conservation des données brutes au format Parquet, sans transformation métier.
 
-Les données sont récupérées depuis l'API du portail Open Data de la ville de Chicago.
+Emplacement :
+`bronze/taxi_trips/quarter=2023-Q1/`
 
-La première extraction porte sur le premier trimestre de l'année 2023 (Q1 2023).
+### Silver — Nettoyage et transformation
 
-L'ingestion utilise une pagination afin de récupérer les données par lots.
-
-## 5. Architecture Medallion
-
-### 5.1. Bronze Layer – Données brutes
-
-Cette couche constitue le point d'entrée des données dans le Data Lake.
-
-Les principales opérations sont :
-
-- Récupération des données depuis l'API Chicago Data Portal.
-- Extraction par pagination.
-- Conservation des données sources sans modification métier.
-- Stockage des données au format Parquet dans MinIO.
-- Organisation des données selon des partitions temporelles.
-
-### 5.2. Silver Layer – Données nettoyées
-
-Cette couche vise à améliorer la qualité et la cohérence des données.
-
-Les transformations prévues comprennent :
-
-- Conversion et validation des types de données.
-- Gestion des valeurs manquantes et invalides.
+- Conversion des types de données.
+- Nettoyage et normalisation des colonnes.
 - Suppression des doublons.
-- Normalisation de certaines colonnes.
-- Application de règles de qualité.
-- Création d'attributs utiles aux analyses.
+- Gestion des valeurs manquantes et vérification de la qualité des données.
+- Création de colonnes dérivées, notamment la date de prise en charge, l'heure et la durée du trajet.
+- Calcul du revenu du trajet.
 
-Les données nettoyées sont ensuite stockées dans MinIO au format Parquet.
+Emplacement :
+`silver/taxi_trips/quarter=2023-Q1/`
 
-### 5.3. Gold Layer – Données analytiques
+### Gold — Agrégations métier
 
-Cette couche transforme les données Silver en jeux de données orientés métier.
+Quatre jeux de données analytiques sont produits :
 
-Les traitements prévus comprennent :
+| Dataset | Description |
+|---|---|
+| `daily_trip_performance` | Indicateurs quotidiens : nombre de trajets, revenus et moyennes |
+| `payment_analysis` | Analyse des trajets et revenus par moyen de paiement |
+| `pickup_area_analysis` | Analyse des trajets par zone de prise en charge |
+| `hourly_trip_analysis` | Analyse de l'activité selon l'heure de la journée |
 
-- Agrégations métier.
-- Calcul d'indicateurs de performance (KPIs).
-- Analyse des revenus et des trajets.
-- Préparation de tables analytiques destinées à la consommation.
+Emplacement :
+`gold/taxi_trips/quarter=2023-Q1/`
 
-Les données Gold sont stockées dans MinIO au format Parquet.
+## 5. API et Dashboard
 
-## 6. Orchestration du pipeline
+### API REST — FastAPI
 
-Dagster est utilisé pour orchestrer les différentes étapes du pipeline.
+L'API expose les données Gold à travers les endpoints suivants :
 
-Il permet notamment de :
+| Endpoint | Description |
+|---|---|
+| `/health` | Vérification de l'état de l'API |
+| `/api/daily-performance` | Performance quotidienne |
+| `/api/payments` | Analyse des moyens de paiement |
+| `/api/pickup-areas` | Analyse par zone de prise en charge |
+| `/api/hourly-analysis` | Analyse par heure |
 
-- Définir les assets correspondant aux différentes couches.
-- Gérer les dépendances entre les transformations.
-- Suivre les exécutions et consulter les logs.
-- Identifier les erreurs de traitement.
-- Relancer les étapes nécessaires.
+Documentation interactive :
+`http://127.0.0.1:8000/docs`
 
-Le pipeline suit l'enchaînement suivant :
+### Dashboard — Streamlit
 
-**Bronze → Silver → Gold**
+Le dashboard est organisé en quatre onglets :
 
-Chaque couche dépend de la réussite de la couche précédente.
+- **Overview** : indicateurs globaux et évolution quotidienne.
+- **Payments** : répartition des trajets et des revenus par moyen de paiement.
+- **Geography** : analyse des zones de prise en charge.
+- **Hourly** : évolution de l'activité selon l'heure.
 
-## 7. Prérequis
+## 6. Structure du projet
 
-Avant de lancer le projet, les outils suivants doivent être installés :
+```text
+taxi-trips-pipeline/
+│
+├── api/
+│   ├── main.py
+│   ├── database.py
+│   └── sql/
+│       ├── daily_trip_performance.sql
+│       ├── payment_analysis.sql
+│       ├── pickup_area_analysis.sql
+│       └── hourly_trip_analysis.sql
+│
+├── dashboard/
+│   └── app.py
+│
+├── src/
+│   ├── definitions.py
+│   └── jobs/
+│       ├── bronze_layer/
+│       │   └── fetch_data.py
+│       ├── silver_layer/
+│       │   ├── cleaning.py
+│       │   └── silver_transform.py
+│       └── gold_layer/
+│           └── gold_transform.py
+│
+├── dagster_home/
+├── Dockerfile
+├── docker-compose.yml
+├── requirements.txt
+├── workspace.yaml
+└── README.md
+```
+
+## 7. Installation et exécution
+
+### Prérequis
 
 - Git
 - Docker Desktop
 - Docker Compose
-- Une connexion Internet pour récupérer les données depuis l'API Chicago.
+- Python 3.10 ou supérieur
 
-Une configuration disposant de suffisamment de mémoire pour exécuter les traitements PySpark est également recommandée.
-
-## 8. Installation et lancement
-
-### Étape 1 – Cloner le repository
+### Étape 1 — Cloner le projet
 
 ```bash
 git clone https://github.com/chadia08/Taxi_Trips_Pipeline.git
-
 cd Taxi_Trips_Pipeline
 ```
 
-### Étape 2 – Configurer les variables d'environnement
-
-Créer un fichier `.env` à partir du modèle `.env.example`, si celui-ci est fourni.
-
-Renseigner les variables nécessaires à la connexion aux services, notamment MinIO.
-
-### Étape 3 – Construire et démarrer les services
+### Étape 2 — Démarrer les services Docker
 
 ```bash
 docker compose up -d --build
 ```
 
-Cette commande démarre les différents services définis dans Docker Compose.
-
-### Étape 4 – Vérifier les conteneurs
+Vérifier que les conteneurs sont démarrés :
 
 ```bash
 docker compose ps
 ```
 
-### Étape 5 – Accéder à Dagster
+Les interfaces disponibles sont :
 
-Ouvrir l'interface Dagster dans le navigateur :
+- Dagster : `http://localhost:3000`
+- MinIO Console : `http://localhost:9001`
 
-[http://localhost:3000](http://localhost:3000)
+### Étape 3 — Matérialiser les assets Dagster
 
-Depuis l'interface, accéder au **Catalog**, sélectionner les assets du pipeline, puis déclencher leur matérialisation (*Materialize*).
-
-Il est également possible de lancer la matérialisation depuis la ligne de commande :
+La matérialisation peut être lancée depuis le terminal avec :
 
 ```bash
-docker compose exec dagster dagster asset materialize -m src.definitions
+docker compose exec dagster dagster asset materialize --workspace /opt/dagster/app/workspace.yaml --select chicago_taxi_bronze chicago_taxi_silver chicago_taxi_gold
 ```
 
-Dagster orchestre l'exécution des différentes couches en respectant les dépendances définies entre les assets : la couche Bronze est exécutée avant Silver, puis Gold, sous réserve que les assets soient correctement sélectionnés et que les étapes précédentes se terminent avec succès.
+Cette commande lance la matérialisation des trois assets du pipeline. Dagster respecte les dépendances entre les assets : Bronze, puis Silver, puis Gold.
 
-### Étape 6 – Accéder à MinIO
+Il est également possible de lancer la matérialisation depuis l'interface Dagster :
+
+1. Ouvrir `http://localhost:3000`.
+2. Accéder à la vue **Assets**.
+3. Sélectionner les assets du pipeline.
+4. Lancer la matérialisation.
+
+**Important — Durée de la matérialisation Bronze**
+
+La matérialisation de l'asset `chicago_taxi_bronze` peut prendre un certain temps. En effet, cette étape récupère un volume important de données depuis l'API Socrata, correspondant à l'ensemble des trajets enregistrés entre janvier et mars 2023.
+
+La durée dépend notamment du temps de réponse de l'API et du volume de données à télécharger. Il est donc normal que cette première étape soit plus longue que les transformations Silver et Gold.
+
+Une fois Bronze terminée, les étapes suivantes peuvent exploiter les données stockées dans MinIO.
+
+### Étape 4 — Vérifier les données dans MinIO
 
 Ouvrir la console MinIO :
 
-http://localhost:900
+`http://localhost:9001`
+
+Vérifier la présence des fichiers dans le bucket `datalake` :
+
+- `bronze/`
+- `silver/`
+- `gold/`
+
+### Étape 5 — Lancer l'API
+
+Dans un terminal, créer et activer un environnement virtuel si nécessaire, puis installer les dépendances de l'API.
+
+```bash
+uvicorn api.main:app --reload
+```
+
+Tester la documentation interactive :
+
+`http://127.0.0.1:8000/docs`
+
+### Étape 6 — Lancer le Dashboard
+
+Dans un autre terminal :
+
+```bash
+streamlit run dashboard/app.py
+```
+
+Le dashboard sera accessible à l'adresse :
+
+`http://localhost:8501`
+
+## 8. Qualité des données
+
+Plusieurs contrôles sont appliqués durant la transformation Silver :
+
+- Vérification des identifiants des trajets.
+- Suppression des doublons.
+- Vérification de la cohérence des dates et durées.
+- Contrôle des valeurs numériques et financières.
+- Gestion des valeurs manquantes.
+- Normalisation des données catégorielles.
+
+## 9. Choix techniques et perspectives d'amélioration
+
+### Choix techniques
+
+- **Parquet** : format colonnaire adapté aux traitements analytiques.
+- **MinIO** : stockage objet compatible S3 pour construire un Data Lake local.
+- **PySpark** : traitement et transformation de volumes importants de données.
+- **Dagster** : orchestration des étapes et gestion des dépendances entre assets.
+- **DuckDB** : interrogation analytique directe des fichiers Parquet.
+- **FastAPI et Streamlit** : séparation entre l'accès aux données et leur visualisation.
+
+### Améliorations possibles
+
+- Rendre l'ingestion incrémentale et idempotente.
+- Ajouter des tests automatisés de qualité des données.
+- Mettre en place une surveillance des exécutions et des alertes.
+- Ajouter des paramètres pour gérer plusieurs périodes d'ingestion.
+- Déployer les composants sur une infrastructure cloud.
+
+## 10. Auteur
+
+**Chadia El Kharmoudi**
+
+Data Engineering | Data Science | Artificial Intelligence
+
+GitHub : https://github.com/chadia08
