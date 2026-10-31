@@ -1,5 +1,5 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col
+from pyspark.sql.functions import col, expr, regexp_replace, trim
 from dagster import asset
 
 
@@ -56,14 +56,27 @@ def chicago_taxi_silver(chicago_taxi_bronze):
         print(f"Lecture des données Bronze depuis MinIO : {bronze_path}")
         df = spark.read.parquet(bronze_path)
 
+        # === AJOUTE CES LIGNES ICI POUR DIAGNOSTIQUER ===
+        print(f"Nombre total de lignes dans Bronze : {df.count()}")
+        print("Colonnes disponibles dans Bronze :", df.columns)
+        # ===============================================
+
         # 1. Suppression des lignes avec des timestamps critiques nuls
         cleaned_df = df.dropna(
             subset=["trip_start_timestamp", "trip_end_timestamp"]
         )
+        print(f"Nombre de lignes après dropna : {cleaned_df.count()}")
 
-        # 2. Filtrage des montants de course négatifs
+        # 2. Casting explicite de `fare` en double, puis filtrage des montants négatifs
         if "fare" in cleaned_df.columns:
-            cleaned_df = cleaned_df.filter(col("fare") >= 0)
+            fare_clean = trim(regexp_replace(col("fare").cast("string"), r"[\$,]", ""))
+            cleaned_df = (
+                cleaned_df
+                .withColumn("fare", fare_clean)
+                .withColumn("fare", expr("try_cast(fare AS DOUBLE)"))
+                .filter(col("fare").isNotNull() & (col("fare") >= 0))
+            )
+            print(f"Nombre de lignes après nettoyage et filtre fare : {cleaned_df.count()}")
 
         # 3. Écriture des données nettoyées dans la couche Silver
         print(f"Écriture des données nettoyées vers MinIO : {silver_path}")
@@ -73,6 +86,6 @@ def chicago_taxi_silver(chicago_taxi_bronze):
         print("Couche Silver générée et validée avec succès !")
 
         return silver_path
-
+    
     finally:
         spark.stop()
