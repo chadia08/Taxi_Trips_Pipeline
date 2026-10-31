@@ -12,7 +12,7 @@ Le pipeline couvre la période du **1er janvier au 31 mars 2023 (Q1 2023)**.
 
 Le projet repose sur une architecture modulaire orchestrée par Dagster.
 
-![Architecture du pipeline Chicago Taxi Trips](architecture.png)
+![Architecture du pipeline Chicago Taxi Trips](images/architecture.png)
 
 ## 3. Technologies utilisées
 
@@ -145,7 +145,28 @@ git clone https://github.com/chadia08/Taxi_Trips_Pipeline.git
 cd Taxi_Trips_Pipeline
 ```
 
-### Étape 2 — Démarrer les services Docker
+Étape 2 — Créer et configurer l'environnement virtuel Python
+
+Créer un environnement virtuel permet d'isoler les dépendances Python du projet.
+
+Sous Windows (PowerShell) :
+
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+
+Sous Linux / macOS :
+
+python3 -m venv .venv
+source .venv/bin/activate
+
+Mettre à jour pip et installer les dépendances :
+
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+
+Remarque : l'environnement virtuel est utilisé pour exécuter localement l'API FastAPI et le dashboard Streamlit. Les dépendances nécessaires aux services Dagster et PySpark sont installées séparément dans les conteneurs Docker.
+
+### Étape 3 — Démarrer les services Docker
 
 ```bash
 docker compose up -d --build
@@ -162,7 +183,7 @@ Les interfaces disponibles sont :
 - Dagster : `http://localhost:3000`
 - MinIO Console : `http://localhost:9001`
 
-### Étape 3 — Matérialiser les assets Dagster
+### Étape 4 — Matérialiser les assets Dagster
 
 La matérialisation peut être lancée depuis le terminal avec :
 
@@ -179,6 +200,8 @@ Il est également possible de lancer la matérialisation depuis l'interface Dags
 3. Sélectionner les assets du pipeline.
 4. Lancer la matérialisation.
 
+![bronze asset materialized](images/bronze%20asset%20materialized.png)
+
 **Important — Durée de la matérialisation Bronze**
 
 La matérialisation de l'asset `chicago_taxi_bronze` peut prendre un certain temps. En effet, cette étape récupère un volume important de données depuis l'API Socrata, correspondant à l'ensemble des trajets enregistrés entre janvier et mars 2023.
@@ -186,6 +209,15 @@ La matérialisation de l'asset `chicago_taxi_bronze` peut prendre un certain tem
 La durée dépend notamment du temps de réponse de l'API et du volume de données à télécharger. Il est donc normal que cette première étape soit plus longue que les transformations Silver et Gold.
 
 Une fois Bronze terminée, les étapes suivantes peuvent exploiter les données stockées dans MinIO.
+
+![silver asset materialized](images/silver%20asset%20materialized.png)
+
+![gold asset materialized](images/gold%20asset%20materialized.png)
+
+
+Une fois toutes les assets matérialisées avec succès, vérifiez dans l’interface Dagster que **le lineage** entre les assets Bronze, Silver et Gold est bien visible et que leurs dépendances sont correctement représentées.
+
+![Lineage](images/lineage.png)
 
 ### Étape 4 — Vérifier les données dans MinIO
 
@@ -198,6 +230,15 @@ Vérifier la présence des fichiers dans le bucket `datalake` :
 - `bronze/`
 - `silver/`
 - `gold/`
+
+![Raw data](images/raw%20data.png)
+
+![Cleaned data](images/cleaned%20data.png)
+
+![Aggregated data](images/aggregated%20data.png)
+
+
+![Aggregated data](images/aggregated%20data%20details.png)
 
 ### Étape 5 — Lancer l'API
 
