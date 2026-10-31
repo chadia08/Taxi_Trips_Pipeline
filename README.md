@@ -223,6 +223,9 @@ Le dashboard sera accessible à l'adresse :
 
 `http://localhost:8501`
 
+
+📥 [Consulter le rapport Streamlit complet (PDF)](Reporting.pdf)
+
 ## 8. Qualité des données
 
 Plusieurs contrôles sont appliqués durant la transformation Silver :
