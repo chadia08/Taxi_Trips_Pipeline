@@ -42,11 +42,13 @@ services:
     networks:
       - data_network
 
+ 
   dagster:
     build: .
     container_name: chicago_dagster
     entrypoint: ["dagster-webserver", "-h", "0.0.0.0", "-p", "3000", "-w", "workspace.yaml"]
-    environment:
+    environment: &dagster-env
+      DAGSTER_HOME: /opt/dagster/dagster_home
       DAGSTER_PG_USERNAME: dagster
       DAGSTER_PG_PASSWORD: dagster_password
       DAGSTER_PG_HOST: postgres
@@ -57,9 +59,22 @@ services:
       MLFLOW_S3_ENDPOINT_URL: http://minio:9000
     ports:
       - "3000:3000"
-    volumes:
+    volumes: &dagster-volumes
       - ./src:/opt/dagster/app/src
       - .:/opt/dagster/app
+      - ./dagster_home:/opt/dagster/dagster_home
+    depends_on:
+      - postgres
+      - minio
+    networks:
+      - data_network
+
+  dagster-daemon:
+    build: .
+    container_name: chicago_dagster_daemon
+    entrypoint: ["dagster-daemon", "run"]
+    environment: *dagster-env
+    volumes: *dagster-volumes
     depends_on:
       - postgres
       - minio

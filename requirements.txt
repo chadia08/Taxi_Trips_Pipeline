@@ -7,3 +7,8 @@ requests
 pandas
 pyarrow
 pytest
+plotly
+duckdb
+streamlit
+fastapi
+uvicorn
